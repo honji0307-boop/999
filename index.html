@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學園互動月曆 - 蓋章系統</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --primary-dark: #357abd;
+            --stamp-color: #e74c3c;
+            --bg-color: #f8f9fa;
+        }
+
+        body {
+            font-family: "Microsoft JhengHei", Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* 分頁樣式 */
+        .tabs {
+            display: flex;
+            background: #fff;
+            width: 100%;
+            max-width: 500px;
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px 0;
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+            color: #666;
+            transition: 0.3s;
+        }
+
+        .tab.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .tab:not(.active):hover {
+            background-color: #f0f0f0;
+        }
+
+        /* 月曆容器 */
+        .calendar-container {
+            background: white;
+            width: 90%;
+            max-width: 500px;
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .current-tag {
+            font-size: 0.9em;
+            background: #eee;
+            padding: 4px 10px;
+            border-radius: 20px;
+            color: var(--primary-dark);
+        }
+
+        /* 月曆網格 */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+        }
+
+        .weekday {
+            text-align: center;
+            font-weight: bold;
+            color: #999;
+            font-size: 0.8em;
+            padding-bottom: 10px;
+        }
+
+        .day {
+            aspect-ratio: 1 / 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            transition: 0.2s;
+        }
+
+        .day:hover {
+            border-color: var(--primary-color);
+            background: #f0f7ff;
+        }
+
+        .day.today {
+            border: 2px solid var(--primary-color);
+            font-weight: bold;
+        }
+
+        .day.empty {
+            background: transparent;
+            border: none;
+            cursor: default;
+        }
+
+        /* 蓋章樣式 */
+        .stamp {
+            width: 24px;
+            height: 24px;
+            background-color: var(--stamp-color);
+            color: white;
+            border-radius: 50%;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            transform: scale(0);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: 2px solid #fff;
+        }
+
+        .day.stamped .stamp {
+            transform: scale(1) rotate(-15deg);
+        }
+
+        .footer {
+            margin-top: 20px;
+            color: #888;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('國小', this)">國小</div>
+        <div class="tab" onclick="switchTab('國中', this)">國中</div>
+        <div class="tab" onclick="switchTab('高中', this)">高中</div>
+    </div>
+
+    <div class="calendar-container">
+        <div class="calendar-header">
+            <h2 id="monthTitle">2024年 5月</h2>
+            <div class="current-tag" id="levelTag">國小部</div>
+        </div>
+        
+        <div class="calendar-grid" id="calendarGrid">
+            <div class="weekday">日</div>
+            <div class="weekday">一</div>
+            <div class="weekday">二</div>
+            <div class="weekday">三</div>
+            <div class="weekday">四</div>
+            <div class="weekday">五</div>
+            <div class="weekday">六</div>
+            </div>
+    </div>
+
+    <div class="footer">點擊日期即可「蓋章」或「取消」</div>
+
+    <script>
+        let currentLevel = '國小';
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth(); // 0-11
+        const currentDate = today.getDate();
+
+        // 紀錄蓋章狀態的資料結構 (key: Level-Year-Month-Day)
+        const stampData = JSON.parse(localStorage.getItem('calendarStamps')) || {};
+
+        function initCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            const monthTitle = document.getElementById('monthTitle');
+            
+            // 設定標題 (顯示當前年月)
+            const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+            monthTitle.innerText = `${currentYear}年 ${monthNames[currentMonth]}`;
+
+            // 清除舊日期（保留星期標題）
+            const weekdays = grid.querySelectorAll('.weekday');
+            grid.innerHTML = '';
+            weekdays.forEach(w => grid.appendChild(w));
+
+            // 計算當月第一天是星期幾
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            // 計算當月共有幾天
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+            // 填補月初空白
+            for (let i = 0; i < firstDay; i++) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'day empty';
+                grid.appendChild(emptyDiv);
+            }
+
+            // 填入日期
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'day';
+                if (i === currentDate) dayDiv.classList.add('today');
+
+                // 檢查是否有蓋章紀錄
+                const stampKey = `${currentLevel}-${currentYear}-${currentMonth}-${i}`;
+                if (stampData[stampKey]) {
+                    dayDiv.classList.add('stamped');
+                }
+
+                dayDiv.innerHTML = `
+                    <span>${i}</span>
+                    <div class="stamp">已閱</div>
+                `;
+
+                // 蓋章點擊事件
+                dayDiv.onclick = function() {
+                    this.classList.toggle('stamped');
+                    if (this.classList.contains('stamped')) {
+                        stampData[stampKey] = true;
+                    } else {
+                        delete stampData[stampKey];
+                    }
+                    localStorage.setItem('calendarStamps', JSON.stringify(stampData));
+                };
+
+                grid.appendChild(dayDiv);
+            }
+        }
+
+        function switchTab(level, element) {
+            // 切換分頁樣式
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            element.classList.add('active');
+            
+            // 更新狀態與標籤
+            currentLevel = level;
+            document.getElementById('levelTag').innerText = level + '部';
+            
+            // 重新渲染月曆 (不同分頁蓋章紀錄是獨立的)
+            initCalendar();
+        }
+
+        // 初始化執行
+        initCalendar();
+    </script>
+</body>
+</html>
